@@ -12,7 +12,7 @@
 
 ## Introduction
 
-The Unity Exposed Bindings library provides access to Unity's internal methods that are not exposed in the public API. This is achieved through IL (Intermediate Language) injection using the Cecil library to modify compiled assemblies at runtime.
+The Unity Exposed Bindings library provides access to Unity's internal methods that are not exposed in the public API. This is achieved through IL (Intermediate Language) injection using the Cecil library to modify compiled assemblies at build time.
 
 ### Purpose and Approach
 
