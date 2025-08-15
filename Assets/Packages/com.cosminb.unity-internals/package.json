@@ -1,0 +1,19 @@
+{
+  "name": "com.cosminb.unity-internals",
+  "version": "1.0.0",
+  "displayName": "Exposed Bindings",
+  "description": "Exposes Unity internal bindings for high-performance native array operations. Built for Unity 6000.0.31f1. Source code is available in the Runtime~ folder for reference and modification.",
+  "unity": "6000.0",
+  "unityRelease": "31f1",
+  "dependencies": {
+    "com.unity.collections": "2.5.1"
+  },
+  "keywords": [
+    "internals",
+    "performance",
+    "native"
+  ],
+  "author": {
+    "name": "Cosmin Bararu"
+  }
+}
