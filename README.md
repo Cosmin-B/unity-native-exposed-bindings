@@ -48,39 +48,52 @@ The `Runtime~` folder (with `~` suffix) prevents Unity from compiling the source
 
 ## Installation
 
-### Option 1: Direct Package Installation (Recommended)
+### Option 1: Install via Git URL (Recommended)
 
-1. Download or clone this repository
-2. Copy the `Assets/Packages/com.cosminb.unity-internals` folder to your Unity project's `Packages` folder
-3. Unity will automatically detect and import the package
-
-### Option 2: Unity Package Manager with Local Path
+Unity Package Manager supports installing packages from Git subfolders using the `?path=` parameter:
 
 1. Open Unity Package Manager (Window > Package Manager)
-2. Click the `+` button and select "Add package from disk"
-3. Navigate to the downloaded repository and select:
+2. Click the `+` button and select "Add package from git URL"
+3. Enter:
    ```
-   Assets/Packages/com.cosminb.unity-internals/package.json
+   https://github.com/Cosmin-B/unity-native-exposed-bindings.git?path=Assets/Packages/com.cosminb.unity-internals
    ```
 
-### Option 3: Manual Installation to Assets
+Alternatively, add directly to your `Packages/manifest.json`:
+```json
+{
+  "dependencies": {
+    "com.cosminb.unity-internals": "https://github.com/Cosmin-B/unity-native-exposed-bindings.git?path=Assets/Packages/com.cosminb.unity-internals"
+  }
+}
+```
 
-1. Download or clone this repository
-2. Copy the `Assets/Packages/com.cosminb.unity-internals` folder to your project's `Assets` directory
-3. The package will be imported as part of your Assets
+### Option 2: Local Installation
+
+#### Via Package Manager:
+1. Clone or download this repository
+2. Open Unity Package Manager
+3. Click `+` → "Add package from disk"
+4. Navigate to `Assets/Packages/com.cosminb.unity-internals/package.json`
+
+#### Manual Copy:
+1. Clone or download this repository
+2. Copy `Assets/Packages/com.cosminb.unity-internals` to either:
+   - Your project's `Packages/` folder (recommended)
+   - Your project's `Assets/` folder
 
 ### Post-Installation: Processing the Assembly
 
-After installing the package, if you need to rebuild the assembly:
+**Note:** The package includes a pre-built `ExposedBindings.dll` that works with Unity 6000.0.31f1+. 
+
+If you need to rebuild for a different Unity version:
 
 1. Copy `ProcessAssembly.sh` and `CecilProcessor/` from this repository to your project root
-2. Run the processor:
+2. Run:
    ```bash
    chmod +x ProcessAssembly.sh
    ./ProcessAssembly.sh
    ```
-
-**Note:** The package includes a pre-built `ExposedBindings.dll` that works with Unity 6000.0.31f1+. You only need to run ProcessAssembly.sh if you're modifying the source code or using a different Unity version.
 
 ## Usage Examples
 
