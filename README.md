@@ -48,34 +48,39 @@ The `Runtime~` folder (with `~` suffix) prevents Unity from compiling the source
 
 ## Installation
 
-### Option 1: Unity Package Manager (Recommended)
+### Option 1: Direct Package Installation (Recommended)
+
+1. Download or clone this repository
+2. Copy the `Assets/Packages/com.cosminb.unity-internals` folder to your Unity project's `Packages` folder
+3. Unity will automatically detect and import the package
+
+### Option 2: Unity Package Manager with Local Path
 
 1. Open Unity Package Manager (Window > Package Manager)
-2. Click the `+` button and select "Add package from git URL"
-3. Enter the following URL:
+2. Click the `+` button and select "Add package from disk"
+3. Navigate to the downloaded repository and select:
    ```
-   https://github.com/Cosmin-B/unity-exposed-internals.git
-   ```
-
-### Option 2: Manual Package Installation
-
-1. Add to your project's `Packages/manifest.json`:
-   ```json
-   {
-     "dependencies": {
-       "com.cosminb.unity-internals": "https://github.com/Cosmin-B/unity-exposed-internals.git"
-     }
-   }
+   Assets/Packages/com.cosminb.unity-internals/package.json
    ```
 
-### Option 3: Download and Import
+### Option 3: Manual Installation to Assets
 
 1. Download or clone this repository
 2. Copy the `Assets/Packages/com.cosminb.unity-internals` folder to your project's `Assets` directory
-3. Run the Cecil processor before using:
+3. The package will be imported as part of your Assets
+
+### Post-Installation: Processing the Assembly
+
+After installing the package, if you need to rebuild the assembly:
+
+1. Copy `ProcessAssembly.sh` and `CecilProcessor/` from this repository to your project root
+2. Run the processor:
    ```bash
+   chmod +x ProcessAssembly.sh
    ./ProcessAssembly.sh
    ```
+
+**Note:** The package includes a pre-built `ExposedBindings.dll` that works with Unity 6000.0.31f1+. You only need to run ProcessAssembly.sh if you're modifying the source code or using a different Unity version.
 
 ## Usage Examples
 
@@ -141,20 +146,16 @@ Unlike reflection-based approaches, this library uses Mono.Cecil for IL injectio
 - The CecilProcessor may need adjustments for new Unity versions
 - Consider maintaining version-specific branches for different Unity releases
 
-## Setup and Processing
+## Building from Source (For Contributors)
 
-### Initial Setup
+If you want to modify the library or rebuild for a different Unity version:
+
+### Prerequisites
 1. Clone this repository
 2. Ensure you have .NET 6.0 SDK installed
-3. Build the CecilProcessor:
-   ```bash
-   cd CecilProcessor
-   dotnet build
-   ```
+3. Unity 6000.0.31f1 or your target version installed
 
-### Processing Unity Assemblies
-After importing the package, you must process Unity's assemblies:
-
+### Building the Assembly
 ```bash
 # Make the script executable
 chmod +x ProcessAssembly.sh
@@ -164,9 +165,15 @@ chmod +x ProcessAssembly.sh
 ```
 
 This will:
-- Build the CecilProcessor if needed
-- Process ExposedBindings.dll to expose internal methods
-- Copy the processed assembly to the correct location
+- Build the CecilProcessor from source
+- Compile the source code from `Runtime~/` 
+- Process the assembly with Cecil to inject IL code
+- Output `ExposedBindings.dll` to the `Plugins/` folder
+
+### Customizing for Different Unity Versions
+1. Update Unity path in `ProcessAssembly.sh` if needed
+2. Modify `CecilProcessor/Program.cs` if internal signatures changed
+3. Test thoroughly on your target Unity version
 
 ### Build and Distribution (For Maintainers)
 
