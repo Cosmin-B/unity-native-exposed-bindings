@@ -42,5 +42,57 @@ namespace ExposedBindings.Exposed
             // This will be replaced by Cecil to call UnityEngine.AssetBundle.LoadFromMemory_Internal_Injected
             throw new NotImplementedException("Assembly not processed by Cecil. Run ProcessAssembly.sh");
         }
+        
+        // Texture encoding methods
+        
+        /// <summary>
+        /// Encodes a texture to PNG format. Returns native memory via BlittableArrayWrapper.
+        /// </summary>
+        public static unsafe void EncodeToPNG_Injected(IntPtr tex, out BlittableArrayWrapper ret)
+        {
+            // This will be replaced by Cecil to call UnityEngine.ImageConversion.EncodeToPNG_Injected
+            ret = default;
+            throw new NotImplementedException("Assembly not processed by Cecil. Run ProcessAssembly.sh");
+        }
+        
+        /// <summary>
+        /// Encodes a texture to JPG format with specified quality. Returns native memory via BlittableArrayWrapper.
+        /// </summary>
+        public static unsafe void EncodeToJPG_Injected(IntPtr tex, int quality, out BlittableArrayWrapper ret)
+        {
+            // This will be replaced by Cecil to call UnityEngine.ImageConversion.EncodeToJPG_Injected
+            ret = default;
+            throw new NotImplementedException("Assembly not processed by Cecil. Run ProcessAssembly.sh");
+        }
+        
+        /// <summary>
+        /// Encodes a texture to TGA format. Returns native memory via BlittableArrayWrapper.
+        /// </summary>
+        public static unsafe void EncodeToTGA_Injected(IntPtr tex, out BlittableArrayWrapper ret)
+        {
+            // This will be replaced by Cecil to call UnityEngine.ImageConversion.EncodeToTGA_Injected
+            ret = default;
+            throw new NotImplementedException("Assembly not processed by Cecil. Run ProcessAssembly.sh");
+        }
+        
+        /// <summary>
+        /// Encodes a texture to EXR format with specified flags. Returns native memory via BlittableArrayWrapper.
+        /// </summary>
+        public static unsafe void EncodeToEXR_Injected(IntPtr tex, int flags, out BlittableArrayWrapper ret)
+        {
+            // This will be replaced by Cecil to call UnityEngine.ImageConversion.EncodeToEXR_Injected
+            ret = default;
+            throw new NotImplementedException("Assembly not processed by Cecil. Run ProcessAssembly.sh");
+        }
+        
+        /// <summary>
+        /// Encodes a texture to R2D internal format. Returns native memory via BlittableArrayWrapper.
+        /// </summary>
+        internal static unsafe void EncodeToR2DInternal_Injected(IntPtr tex, out BlittableArrayWrapper ret)
+        {
+            // This will be replaced by Cecil to call UnityEngine.ImageConversion.EncodeToR2DInternal_Injected
+            ret = default;
+            throw new NotImplementedException("Assembly not processed by Cecil. Run ProcessAssembly.sh");
+        }
     }
 }
