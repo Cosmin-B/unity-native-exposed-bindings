@@ -102,6 +102,7 @@ namespace ExposedBindingsProcessor
             AddMarshalUnityObjectMethod(assembly, exposedType, coreModule);
             ReplaceImageConversionMethod(assembly, exposedType, imageConversionModule, unitySpanWrapper, ourSpanWrapper);
             ReplaceAssetBundleMethods(assembly, exposedType, assetBundleModule, unitySpanWrapper, ourSpanWrapper);
+            ReplaceEncodingMethods(assembly, exposedType, imageConversionModule);
 
             // Remove System.Private.CoreLib reference (added by dotnet SDK but not needed in Unity)
             var coreLibRef = assembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.Name == "System.Private.CoreLib");
@@ -482,6 +483,126 @@ namespace ExposedBindingsProcessor
             il.Emit(OpCodes.Ret);
 
             Console.WriteLine($"Processed {methodName}");
+        }
+
+        static void ReplaceEncodingMethods(AssemblyDefinition assembly, TypeDefinition exposedType, AssemblyDefinition imageConversionModule)
+        {
+            // Find Unity's BlittableArrayWrapper type - it's in CoreModule
+            var coreModulePath = Path.Combine(Path.GetDirectoryName(imageConversionModule.MainModule.FileName), "UnityEngine.CoreModule.dll");
+            var coreModule = AssemblyDefinition.ReadAssembly(coreModulePath);
+            var unityBlittableWrapper = coreModule.MainModule.GetType("UnityEngine.Bindings.BlittableArrayWrapper");
+            
+            if (unityBlittableWrapper == null)
+            {
+                Console.WriteLine("Warning: Could not find Unity's BlittableArrayWrapper, encoding methods will not be processed");
+                return;
+            }
+
+            // Find our BlittableArrayWrapper
+            var ourBlittableWrapper = assembly.MainModule.GetType("ExposedBindings.Internal.BlittableArrayWrapper");
+            if (ourBlittableWrapper == null)
+            {
+                Console.Error.WriteLine("Could not find our BlittableArrayWrapper");
+                return;
+            }
+
+            // Process each encoding method
+            ReplaceEncodingMethod(assembly, exposedType, imageConversionModule, unityBlittableWrapper, ourBlittableWrapper,
+                "EncodeToPNG_Injected", "EncodeToPNG_Injected", 1);
+            
+            ReplaceEncodingMethod(assembly, exposedType, imageConversionModule, unityBlittableWrapper, ourBlittableWrapper,
+                "EncodeToJPG_Injected", "EncodeToJPG_Injected", 2);
+            
+            ReplaceEncodingMethod(assembly, exposedType, imageConversionModule, unityBlittableWrapper, ourBlittableWrapper,
+                "EncodeToTGA_Injected", "EncodeToTGA_Injected", 1);
+            
+            ReplaceEncodingMethod(assembly, exposedType, imageConversionModule, unityBlittableWrapper, ourBlittableWrapper,
+                "EncodeToEXR_Injected", "EncodeToEXR_Injected", 2);
+                
+            ReplaceEncodingMethod(assembly, exposedType, imageConversionModule, unityBlittableWrapper, ourBlittableWrapper,
+                "EncodeToR2DInternal_Injected", "EncodeToR2DInternal_Injected", 1);
+        }
+
+        static void ReplaceEncodingMethod(AssemblyDefinition assembly, TypeDefinition exposedType,
+            AssemblyDefinition imageConversionModule, TypeDefinition unityBlittableWrapper, TypeDefinition ourBlittableWrapper,
+            string exposedMethodName, string unityMethodName, int paramCount)
+        {
+            // Find our stub method
+            var method = exposedType.Methods.FirstOrDefault(m => m.Name == exposedMethodName);
+            if (method == null)
+            {
+                Console.WriteLine($"Warning: Could not find stub method {exposedMethodName}");
+                return;
+            }
+
+            // Find Unity's internal method
+            var imageConversionType = imageConversionModule.MainModule.GetType("UnityEngine.ImageConversion");
+            var unityMethod = imageConversionType?.Methods.FirstOrDefault(m => m.Name == unityMethodName);
+            
+            if (unityMethod == null)
+            {
+                Console.Error.WriteLine($"Could not find UnityEngine.ImageConversion.{unityMethodName}");
+                return;
+            }
+
+            // Clear the existing method body
+            method.Body.Instructions.Clear();
+            method.Body.Variables.Clear();
+            method.Body.ExceptionHandlers.Clear();
+
+            var il = method.Body.GetILProcessor();
+
+            // Create a local variable for Unity's BlittableArrayWrapper (for the out parameter)
+            var localBlittableWrapper = new VariableDefinition(assembly.MainModule.ImportReference(unityBlittableWrapper));
+            method.Body.Variables.Add(localBlittableWrapper);
+
+            // Load parameters for Unity method
+            il.Emit(OpCodes.Ldarg_0); // IntPtr tex
+            
+            // Load additional parameters based on method signature
+            if (paramCount > 1)
+            {
+                il.Emit(OpCodes.Ldarg_1); // int quality or int flags
+            }
+            
+            // Load address of local BlittableArrayWrapper for out parameter
+            il.Emit(OpCodes.Ldloca_S, localBlittableWrapper);
+            
+            // Call Unity's internal method
+            il.Emit(OpCodes.Call, assembly.MainModule.ImportReference(unityMethod));
+
+            // Now copy Unity's BlittableArrayWrapper to our BlittableArrayWrapper
+            // Load the address of the out parameter
+            il.Emit(OpCodes.Ldarg, paramCount); // The out parameter index
+            
+            // Copy the fields from Unity's wrapper to ours
+            // data field
+            il.Emit(OpCodes.Ldloc, localBlittableWrapper);
+            var unityDataField = unityBlittableWrapper.Fields.First(f => f.Name == "data");
+            il.Emit(OpCodes.Ldfld, assembly.MainModule.ImportReference(unityDataField));
+            var ourDataField = ourBlittableWrapper.Fields.First(f => f.Name == "data");
+            il.Emit(OpCodes.Stfld, assembly.MainModule.ImportReference(ourDataField));
+            
+            // size field
+            il.Emit(OpCodes.Ldarg, paramCount);
+            il.Emit(OpCodes.Ldloc, localBlittableWrapper);
+            var unitySizeField = unityBlittableWrapper.Fields.First(f => f.Name == "size");
+            il.Emit(OpCodes.Ldfld, assembly.MainModule.ImportReference(unitySizeField));
+            var ourSizeField = ourBlittableWrapper.Fields.First(f => f.Name == "size");
+            il.Emit(OpCodes.Stfld, assembly.MainModule.ImportReference(ourSizeField));
+            
+            // updateFlags field
+            il.Emit(OpCodes.Ldarg, paramCount);
+            il.Emit(OpCodes.Ldloc, localBlittableWrapper);
+            var unityFlagsField = unityBlittableWrapper.Fields.First(f => f.Name == "updateFlags");
+            il.Emit(OpCodes.Ldfld, assembly.MainModule.ImportReference(unityFlagsField));
+            il.Emit(OpCodes.Conv_I4); // Convert enum to int
+            var ourFlagsField = ourBlittableWrapper.Fields.First(f => f.Name == "updateFlags");
+            il.Emit(OpCodes.Stfld, assembly.MainModule.ImportReference(ourFlagsField));
+            
+            il.Emit(OpCodes.Ret);
+
+            Console.WriteLine($"Replaced {exposedMethodName}");
         }
 
         static FieldReference GetFieldReference(AssemblyDefinition assembly, string typeName, string fieldName)
