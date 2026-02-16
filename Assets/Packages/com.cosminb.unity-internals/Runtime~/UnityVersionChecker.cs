@@ -8,17 +8,27 @@ namespace ExposedBindings
 {
     /// <summary>
     /// Checks Unity version compatibility for the internal bindings.
+    /// The Cecil processor auto-detects internal API signatures at build time,
+    /// so the DLL must be rebuilt via ProcessAssembly.sh when crossing major
+    /// version boundaries (e.g. 6000.0 -> 6000.3).
     /// </summary>
 #if UNITY_EDITOR
     [InitializeOnLoad]
 #endif
     public static class UnityVersionChecker
     {
-        private const string TARGET_UNITY_VERSION = "6000.0.31f1";
-        private const int TARGET_MAJOR = 6000;
-        private const int TARGET_MINOR = 0;
-        private const int TARGET_PATCH = 31;
-        
+        // Minimum supported version — anything older is unsupported.
+        private const string MIN_UNITY_VERSION = "6000.0.31f1";
+        private const int MIN_MAJOR = 6000;
+        private const int MIN_MINOR = 0;
+        private const int MIN_PATCH = 31;
+
+        // Maximum version the Cecil processor has been validated against.
+        // Bump this when verifying a new Unity release.
+        private const string MAX_VALIDATED_VERSION = "6000.3.99f1";
+        private const int MAX_MAJOR = 6000;
+        private const int MAX_MINOR = 3;
+
         static UnityVersionChecker()
         {
             CheckUnityVersion();
@@ -30,33 +40,31 @@ namespace ExposedBindings
         public static void CheckUnityVersion()
         {
             var currentVersion = Application.unityVersion;
-            
+
             if (!ParseUnityVersion(currentVersion, out int major, out int minor, out int patch))
             {
                 Debug.LogWarning($"[ExposedBindings] Could not parse Unity version: {currentVersion}. " +
-                               $"This library was built for Unity {TARGET_UNITY_VERSION}.");
+                               $"Minimum supported: {MIN_UNITY_VERSION}.");
                 return;
             }
 
-            // Check if version is older than target
-            if (major < TARGET_MAJOR || 
-                (major == TARGET_MAJOR && minor < TARGET_MINOR) ||
-                (major == TARGET_MAJOR && minor == TARGET_MINOR && patch < TARGET_PATCH))
+            // Check if version is older than minimum
+            if (major < MIN_MAJOR ||
+                (major == MIN_MAJOR && minor < MIN_MINOR) ||
+                (major == MIN_MAJOR && minor == MIN_MINOR && patch < MIN_PATCH))
             {
-                Debug.LogError($"[ExposedBindings] Unity version {currentVersion} is older than the minimum supported version {TARGET_UNITY_VERSION}. " +
+                Debug.LogError($"[ExposedBindings] Unity version {currentVersion} is older than the minimum supported version {MIN_UNITY_VERSION}. " +
                              "The internal bindings may not work correctly.");
                 return;
             }
 
-            // Warn if version is newer
-            if (major > TARGET_MAJOR || 
-                (major == TARGET_MAJOR && minor > TARGET_MINOR) ||
-                (major == TARGET_MAJOR && minor == TARGET_MINOR && patch > TARGET_PATCH))
+            // Warn if version is beyond validated range
+            if (major > MAX_MAJOR ||
+                (major == MAX_MAJOR && minor > MAX_MINOR))
             {
-                Debug.LogWarning($"[ExposedBindings] This library was built for Unity {TARGET_UNITY_VERSION}, " +
-                               $"but you are using {currentVersion}. " +
-                               "Unity's internal signatures may have changed. " +
-                               "Please test thoroughly and consider updating the bindings if issues occur.");
+                Debug.LogWarning($"[ExposedBindings] Unity {currentVersion} is newer than the last validated version ({MAX_VALIDATED_VERSION}). " +
+                               "Internal signatures may have changed — rebuild with ProcessAssembly.sh against your Unity install " +
+                               "and test thoroughly.");
             }
         }
 
@@ -72,7 +80,7 @@ namespace ExposedBindings
             if (string.IsNullOrEmpty(versionString))
                 return false;
 
-            // Unity version format: "6000.0.31f1" or "2022.3.10f1"
+            // Unity version format: "6000.0.31f1" or "6000.3.2f1"
             var parts = versionString.Split('.');
             if (parts.Length < 3)
                 return false;
@@ -83,12 +91,12 @@ namespace ExposedBindings
             if (!int.TryParse(parts[1], out minor))
                 return false;
 
-            // Extract patch number (remove 'f1' suffix)
+            // Extract patch number (remove 'f1', 'b1', 'a1' suffix)
             var patchStr = parts[2];
-            var fIndex = patchStr.IndexOf('f');
-            if (fIndex > 0)
+            var suffixIndex = patchStr.IndexOfAny(new[] { 'f', 'b', 'a' });
+            if (suffixIndex > 0)
             {
-                patchStr = patchStr.Substring(0, fIndex);
+                patchStr = patchStr.Substring(0, suffixIndex);
             }
 
             if (!int.TryParse(patchStr, out patch))
@@ -103,38 +111,39 @@ namespace ExposedBindings
         public static VersionCompatibility GetCompatibility()
         {
             var currentVersion = Application.unityVersion;
-            
+
             if (!ParseUnityVersion(currentVersion, out int major, out int minor, out int patch))
             {
                 return new VersionCompatibility
                 {
                     IsCompatible = false,
                     CurrentVersion = currentVersion,
-                    TargetVersion = TARGET_UNITY_VERSION,
+                    MinVersion = MIN_UNITY_VERSION,
+                    MaxValidatedVersion = MAX_VALIDATED_VERSION,
                     Message = "Could not parse Unity version"
                 };
             }
 
-            bool isOlder = major < TARGET_MAJOR || 
-                          (major == TARGET_MAJOR && minor < TARGET_MINOR) ||
-                          (major == TARGET_MAJOR && minor == TARGET_MINOR && patch < TARGET_PATCH);
+            bool isOlder = major < MIN_MAJOR ||
+                          (major == MIN_MAJOR && minor < MIN_MINOR) ||
+                          (major == MIN_MAJOR && minor == MIN_MINOR && patch < MIN_PATCH);
 
-            bool isNewer = major > TARGET_MAJOR || 
-                          (major == TARGET_MAJOR && minor > TARGET_MINOR) ||
-                          (major == TARGET_MAJOR && minor == TARGET_MINOR && patch > TARGET_PATCH);
+            bool isBeyondValidated = major > MAX_MAJOR ||
+                                     (major == MAX_MAJOR && minor > MAX_MINOR);
 
-            bool isExactMatch = major == TARGET_MAJOR && minor == TARGET_MINOR && patch == TARGET_PATCH;
+            bool isInRange = !isOlder && !isBeyondValidated;
 
             return new VersionCompatibility
             {
                 IsCompatible = !isOlder,
-                IsExactMatch = isExactMatch,
-                IsNewer = isNewer,
+                IsInValidatedRange = isInRange,
+                IsBeyondValidated = isBeyondValidated,
                 CurrentVersion = currentVersion,
-                TargetVersion = TARGET_UNITY_VERSION,
+                MinVersion = MIN_UNITY_VERSION,
+                MaxValidatedVersion = MAX_VALIDATED_VERSION,
                 Message = isOlder ? "Unity version is older than minimum supported version" :
-                         isNewer ? "Unity version is newer than target version - internals may have changed" :
-                         "Unity version matches target version"
+                         isBeyondValidated ? "Unity version is newer than last validated version — rebuild recommended" :
+                         "Unity version is within validated range"
             };
         }
 
@@ -144,10 +153,11 @@ namespace ExposedBindings
         public struct VersionCompatibility
         {
             public bool IsCompatible;
-            public bool IsExactMatch;
-            public bool IsNewer;
+            public bool IsInValidatedRange;
+            public bool IsBeyondValidated;
             public string CurrentVersion;
-            public string TargetVersion;
+            public string MinVersion;
+            public string MaxValidatedVersion;
             public string Message;
         }
     }

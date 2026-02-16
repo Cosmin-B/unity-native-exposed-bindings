@@ -1,8 +1,8 @@
 {
   "name": "com.cosminb.unity-internals",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "displayName": "Exposed Bindings",
-  "description": "Exposes Unity internal bindings for high-performance native array operations. Built for Unity 6000.0.31f1. Source code is available in the Runtime~ folder for reference and modification.",
+  "description": "Exposes Unity internal bindings for high-performance native array operations. Supports Unity 6000.0.31f1 through 6000.3.x. Source code is available in the Runtime~ folder for reference and modification.",
   "unity": "6000.0",
   "unityRelease": "31f1",
   "dependencies": {

@@ -1,14 +1,37 @@
 #!/bin/bash
 
 # Build script for processing Unity internal bindings assembly with Cecil
+#
+# Usage:
+#   ./ProcessAssembly.sh                              # uses default Unity path
+#   ./ProcessAssembly.sh /path/to/unity/editor        # custom Unity install
+#   UNITY_PATH=/path/to/unity ./ProcessAssembly.sh    # via env var
 
-UNITY_PATH="/Applications/Unity/Hub/Editor/6000.0.31f1"
+# Accept Unity path as first argument, fall back to env var, then to default.
+UNITY_PATH="${1:-${UNITY_PATH:-/Applications/Unity/Hub/Editor/6000.0.31f1}}"
 PROJECT_PATH="$(pwd)"
 ASSEMBLY_NAME="ExposedBindings"
 
 echo "=== ExposedBindings Assembly Processor ==="
 echo "Unity Path: $UNITY_PATH"
 echo "Project Path: $PROJECT_PATH"
+
+# Resolve the managed assemblies directory (macOS vs Windows layout)
+if [ -d "$UNITY_PATH/Unity.app/Contents/Managed/UnityEngine" ]; then
+    MANAGED_DIR="$UNITY_PATH/Unity.app/Contents/Managed"
+    ENGINE_DIR="$MANAGED_DIR/UnityEngine"
+elif [ -d "$UNITY_PATH/Editor/Data/Managed/UnityEngine" ]; then
+    MANAGED_DIR="$UNITY_PATH/Editor/Data/Managed"
+    ENGINE_DIR="$MANAGED_DIR/UnityEngine"
+else
+    echo "Error: Could not locate Unity managed assemblies under $UNITY_PATH"
+    echo "Tried:"
+    echo "  $UNITY_PATH/Unity.app/Contents/Managed/UnityEngine  (macOS)"
+    echo "  $UNITY_PATH/Editor/Data/Managed/UnityEngine          (Windows)"
+    exit 1
+fi
+
+echo "Managed Dir: $MANAGED_DIR"
 
 # Step 1: Build the Cecil processor
 echo ""
@@ -32,8 +55,8 @@ rm -rf "$TEMP_BUILD"
 mkdir -p "$TEMP_BUILD/TempAssembly"
 cd "$TEMP_BUILD/TempAssembly"
 
-# Create project file
-cat > TempAssembly.csproj << 'EOF'
+# Create project file — references are resolved from the detected Unity install
+cat > TempAssembly.csproj << CSPROJ_EOF
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
@@ -43,29 +66,29 @@ cat > TempAssembly.csproj << 'EOF'
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>/Applications/Unity/Hub/Editor/6000.0.31f1/Unity.app/Contents/Managed/UnityEngine/UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>${ENGINE_DIR}/UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
-      <HintPath>/Applications/Unity/Hub/Editor/6000.0.31f1/Unity.app/Contents/Managed/UnityEngine/UnityEngine.AssetBundleModule.dll</HintPath>
+      <HintPath>${ENGINE_DIR}/UnityEngine.AssetBundleModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>/Applications/Unity/Hub/Editor/6000.0.31f1/Unity.app/Contents/Managed/UnityEngine/UnityEngine.ImageConversionModule.dll</HintPath>
+      <HintPath>${ENGINE_DIR}/UnityEngine.ImageConversionModule.dll</HintPath>
     </Reference>
     <Reference Include="Unity.Collections">
-      <HintPath>/Applications/Unity/Hub/Editor/6000.0.31f1/Unity.app/Contents/Managed/Unity.Collections.dll</HintPath>
+      <HintPath>${MANAGED_DIR}/Unity.Collections.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib">
-      <HintPath>/Applications/Unity/Hub/Editor/6000.0.31f1/Unity.app/Contents/Managed/mscorlib.dll</HintPath>
+      <HintPath>${MANAGED_DIR}/mscorlib.dll</HintPath>
     </Reference>
     <Reference Include="System">
-      <HintPath>/Applications/Unity/Hub/Editor/6000.0.31f1/Unity.app/Contents/Managed/System.dll</HintPath>
+      <HintPath>${MANAGED_DIR}/System.dll</HintPath>
     </Reference>
     <Reference Include="System.Core">
-      <HintPath>/Applications/Unity/Hub/Editor/6000.0.31f1/Unity.app/Contents/Managed/System.Core.dll</HintPath>
+      <HintPath>${MANAGED_DIR}/System.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
-EOF
+CSPROJ_EOF
 
 # Copy source files from package Runtime~ directory
 cp -r "$PROJECT_PATH/Assets/Packages/com.cosminb.unity-internals/Runtime~"/* .
@@ -110,7 +133,8 @@ echo "2. Unity will automatically reimport it"
 echo "3. Test the functionality with the TestUnityInternalBindings MonoBehaviour"
 echo ""
 echo "All methods processed successfully:"
-echo "  ✓ MarshalUnityObject - Direct access to Unity object pointers without allocations"
-echo "  ✓ ImageConversion_LoadImage_Injected - Direct Span-based image loading" 
-echo "  ✓ AssetBundle_LoadFromMemoryAsync_Internal_Injected - Async bundle loading from Span"
-echo "  ✓ AssetBundle_LoadFromMemory_Internal_Injected - Sync bundle loading from Span"
+echo "  - MarshalUnityObject - Direct access to Unity object pointers without allocations"
+echo "  - ImageConversion_LoadImage_Injected - Direct Span-based image loading"
+echo "  - AssetBundle_LoadFromMemoryAsync_Internal_Injected - Async bundle loading from Span"
+echo "  - AssetBundle_LoadFromMemory_Internal_Injected - Sync bundle loading from Span"
+echo "  - Texture encoding methods (PNG, JPG, TGA, EXR)"

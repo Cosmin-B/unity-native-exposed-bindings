@@ -17,11 +17,16 @@ namespace ExposedBindings.Exposed
         
         /// <summary>
         /// Gets the marshalled Unity object pointer. This avoids allocations compared to reflection.
+        /// The Cecil processor detects whether the target Unity version uses the pre-6000.3
+        /// signature (int, Type, out bool) or the 6000.3+ signature (int, out bool) for the
+        /// internal GetPtrFromInstanceID call and emits the correct IL accordingly.
         /// </summary>
         public static IntPtr MarshalUnityObject(UnityEngine.Object obj)
         {
             // This will be replaced by Cecil to access obj.m_CachedPtr directly
-            // and call Unity's internal GetPtrFromInstanceID if needed
+            // and call Unity's internal GetPtrFromInstanceID if needed.
+            // The Cecil processor auto-detects the GetPtrFromInstanceID signature at
+            // build time, so the same source works for both pre-6000.3 and 6000.3+.
             throw new NotImplementedException("Assembly not processed by Cecil. Run ProcessAssembly.sh");
         }
         

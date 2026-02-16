@@ -102,7 +102,7 @@ namespace ExposedBindingsProcessor
             AddMarshalUnityObjectMethod(assembly, exposedType, coreModule);
             ReplaceImageConversionMethod(assembly, exposedType, imageConversionModule, unitySpanWrapper, ourSpanWrapper);
             ReplaceAssetBundleMethods(assembly, exposedType, assetBundleModule, unitySpanWrapper, ourSpanWrapper);
-            ReplaceEncodingMethods(assembly, exposedType, imageConversionModule);
+            ReplaceEncodingMethods(assembly, exposedType, imageConversionModule, coreModule);
 
             // Remove System.Private.CoreLib reference (added by dotnet SDK but not needed in Unity)
             var coreLibRef = assembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.Name == "System.Private.CoreLib");
@@ -154,13 +154,22 @@ namespace ExposedBindingsProcessor
                 return;
             }
 
-            // Find GetPtrFromInstanceID method
+            // Find GetPtrFromInstanceID method.
+            // The signature changed in Unity 6000.3:
+            //   Pre-6000.3:  IntPtr GetPtrFromInstanceID(int instanceID, Type objectType, out bool isMonoBehaviour)
+            //   6000.3+:     IntPtr GetPtrFromInstanceID(int instanceID, out bool isMonoBehaviour)
+            // We detect the parameter count at processing time and emit the correct IL.
             var getPtrMethod = unityObjectType.Methods.FirstOrDefault(m => m.Name == "GetPtrFromInstanceID");
             if (getPtrMethod == null)
             {
                 Console.Error.WriteLine("Could not find GetPtrFromInstanceID method");
                 return;
             }
+
+            bool hasTypeParameter = getPtrMethod.Parameters.Count == 3;
+            Console.WriteLine(hasTypeParameter
+                ? "  Detected GetPtrFromInstanceID(int, Type, out bool) — pre-6000.3 signature"
+                : "  Detected GetPtrFromInstanceID(int, out bool) — 6000.3+ signature");
 
             // Clear existing method body
             method.Body.Instructions.Clear();
@@ -195,38 +204,42 @@ namespace ExposedBindingsProcessor
             il.Emit(OpCodes.Ldc_I4_0);
             il.Emit(OpCodes.Conv_I);
             il.Emit(OpCodes.Beq_S, needsInstanceIdLabel);
-            
+
             // m_CachedPtr is valid, return it
             il.Emit(OpCodes.Ldloc_0);
             il.Emit(OpCodes.Ret);
 
             // m_CachedPtr is zero, need to use instance ID
             il.Append(needsInstanceIdLabel);
-            
+
             // Call GetInstanceID() to get the instance ID
             var instanceIdLocal = new VariableDefinition(assembly.MainModule.TypeSystem.Int32);
             method.Body.Variables.Add(instanceIdLocal);
-            
+
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, assembly.MainModule.ImportReference(getInstanceIdMethod));
             il.Emit(OpCodes.Stloc, instanceIdLocal);
-            
+
             // Check if instance ID == 0
             var instanceIdNotZeroLabel = il.Create(OpCodes.Nop);
             il.Emit(OpCodes.Ldloc, instanceIdLocal);
             il.Emit(OpCodes.Brtrue_S, instanceIdNotZeroLabel);
-            
+
             // Instance ID is 0, return IntPtr.Zero
             il.Emit(OpCodes.Ldc_I4_0);
             il.Emit(OpCodes.Conv_I);
             il.Emit(OpCodes.Ret);
-            
+
             // Instance ID is not 0, call GetPtrFromInstanceID
             il.Append(instanceIdNotZeroLabel);
             il.Emit(OpCodes.Ldloc, instanceIdLocal);
-            
-            // For simplicity, pass null for Type (Unity will handle it)
-            il.Emit(OpCodes.Ldnull);
+
+            // Pre-6000.3: pass null for the Type parameter that was removed in 6000.3
+            if (hasTypeParameter)
+            {
+                il.Emit(OpCodes.Ldnull);
+            }
+
             il.Emit(OpCodes.Ldloca_S, isMonoBehaviourLocal);
             il.Emit(OpCodes.Call, assembly.MainModule.ImportReference(getPtrMethod));
             il.Emit(OpCodes.Ret);
@@ -485,11 +498,9 @@ namespace ExposedBindingsProcessor
             Console.WriteLine($"Processed {methodName}");
         }
 
-        static void ReplaceEncodingMethods(AssemblyDefinition assembly, TypeDefinition exposedType, AssemblyDefinition imageConversionModule)
+        static void ReplaceEncodingMethods(AssemblyDefinition assembly, TypeDefinition exposedType, AssemblyDefinition imageConversionModule, AssemblyDefinition coreModule)
         {
-            // Find Unity's BlittableArrayWrapper type - it's in CoreModule
-            var coreModulePath = Path.Combine(Path.GetDirectoryName(imageConversionModule.MainModule.FileName), "UnityEngine.CoreModule.dll");
-            var coreModule = AssemblyDefinition.ReadAssembly(coreModulePath);
+            // Reuse the already-loaded CoreModule to find BlittableArrayWrapper
             var unityBlittableWrapper = coreModule.MainModule.GetType("UnityEngine.Bindings.BlittableArrayWrapper");
             
             if (unityBlittableWrapper == null)
