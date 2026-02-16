@@ -28,7 +28,9 @@ namespace ExposedBindings.Internal
 
         /// <summary>
         /// Converts the native data to a NativeArray without copying.
-        /// The caller is responsible for disposing the NativeArray.
+        /// WARNING: This wraps Unity-owned memory. The returned NativeArray must NOT
+        /// be disposed — use Allocator.None so that Dispose() is a no-op. If you need
+        /// a NativeArray you can safely dispose, use <see cref="CopyToNativeArray{T}"/> instead.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public NativeArray<T> ToNativeArray<T>(Allocator allocator) where T : unmanaged
@@ -42,13 +44,14 @@ namespace ExposedBindings.Internal
             int elementSize = UnsafeUtility.SizeOf<T>();
             int elementCount = size / elementSize;
 
-            // Create NativeArray that wraps the data
+            // Wrap Unity-owned memory with Allocator.None so Dispose() won't
+            // attempt to free native memory we don't own.
             var nativeArray = NativeArrayUnsafeUtility.ConvertExistingDataToNativeArray<T>(
-                data, elementCount, allocator);
+                data, elementCount, Allocator.None);
 
 #if ENABLE_UNITY_COLLECTIONS_CHECKS
             // Set safety handle for the native array
-            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeArray, 
+            NativeArrayUnsafeUtility.SetAtomicSafetyHandle(ref nativeArray,
                 AtomicSafetyHandle.Create());
 #endif
 

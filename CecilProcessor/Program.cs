@@ -102,7 +102,7 @@ namespace ExposedBindingsProcessor
             AddMarshalUnityObjectMethod(assembly, exposedType, coreModule);
             ReplaceImageConversionMethod(assembly, exposedType, imageConversionModule, unitySpanWrapper, ourSpanWrapper);
             ReplaceAssetBundleMethods(assembly, exposedType, assetBundleModule, unitySpanWrapper, ourSpanWrapper);
-            ReplaceEncodingMethods(assembly, exposedType, imageConversionModule);
+            ReplaceEncodingMethods(assembly, exposedType, imageConversionModule, coreModule);
 
             // Remove System.Private.CoreLib reference (added by dotnet SDK but not needed in Unity)
             var coreLibRef = assembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.Name == "System.Private.CoreLib");
@@ -498,11 +498,9 @@ namespace ExposedBindingsProcessor
             Console.WriteLine($"Processed {methodName}");
         }
 
-        static void ReplaceEncodingMethods(AssemblyDefinition assembly, TypeDefinition exposedType, AssemblyDefinition imageConversionModule)
+        static void ReplaceEncodingMethods(AssemblyDefinition assembly, TypeDefinition exposedType, AssemblyDefinition imageConversionModule, AssemblyDefinition coreModule)
         {
-            // Find Unity's BlittableArrayWrapper type - it's in CoreModule
-            var coreModulePath = Path.Combine(Path.GetDirectoryName(imageConversionModule.MainModule.FileName), "UnityEngine.CoreModule.dll");
-            var coreModule = AssemblyDefinition.ReadAssembly(coreModulePath);
+            // Reuse the already-loaded CoreModule to find BlittableArrayWrapper
             var unityBlittableWrapper = coreModule.MainModule.GetType("UnityEngine.Bindings.BlittableArrayWrapper");
             
             if (unityBlittableWrapper == null)
