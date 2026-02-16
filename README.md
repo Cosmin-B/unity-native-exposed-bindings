@@ -4,7 +4,7 @@
   
   ### High-Performance Unity Internal Bindings for Zero-Allocation Operations
   
-  [![Unity](https://img.shields.io/badge/Unity-6000.0.31f1-black.svg?style=flat&logo=unity)](https://unity3d.com/)
+  [![Unity](https://img.shields.io/badge/Unity-6000.0_|_6000.3-black.svg?style=flat&logo=unity)](https://unity3d.com/)
   [![C#](https://img.shields.io/badge/C%23-11.0-239120.svg?style=flat&logo=c-sharp)](https://docs.microsoft.com/en-us/dotnet/csharp/)
   [![IL2CPP](https://img.shields.io/badge/IL2CPP-Supported-00D4AA.svg?style=flat)](https://docs.unity3d.com/Manual/IL2CPP.html)
   [![Cross Platform](https://img.shields.io/badge/Platform-iOS_Android_WebGL_Windows_macOS_Linux-blue.svg?style=flat)](https://unity.com/)
@@ -42,7 +42,7 @@ The `Runtime~` folder (with `~` suffix) prevents Unity from compiling the source
 
 ## Requirements
 
-- Unity 6000.0.31f1 or later
+- Unity 6000.0.31f1 through 6000.3.x (Cecil processor auto-detects internal API signatures)
 - .NET 6.0 SDK (for Cecil processing)
 - Mono.Cecil NuGet package
 
@@ -84,16 +84,18 @@ Alternatively, add directly to your `Packages/manifest.json`:
 
 ### Post-Installation: Processing the Assembly
 
-**Note:** The package includes a pre-built `ExposedBindings.dll` that works with Unity 6000.0.31f1+. 
+**Note:** The package includes a pre-built `ExposedBindings.dll` that was processed against Unity 6000.0.31f1.
 
-If you need to rebuild for a different Unity version:
+If you are on Unity 6000.3.x or a different version, you **must** rebuild the assembly:
 
 1. Copy `ProcessAssembly.sh` and `CecilProcessor/` from this repository to your project root
 2. Run:
    ```bash
    chmod +x ProcessAssembly.sh
-   ./ProcessAssembly.sh
+   # Pass your Unity editor path (auto-detects macOS/Windows layout):
+   ./ProcessAssembly.sh "/Applications/Unity/Hub/Editor/6000.3.0f1"
    ```
+   The Cecil processor will auto-detect which internal signatures your Unity version uses and emit the correct IL.
 
 ## Usage Examples
 
@@ -123,7 +125,18 @@ The library uses Mono.Cecil to:
 
 - **Platforms**: Android, WebGL, macOS, Windows, Linux, iOS
 - **Build Types**: Mono and IL2CPP
-- **Unity Version**: 6000.0.31f1 and later
+- **Unity Version**: 6000.0.31f1 through 6000.3.x (validated)
+
+### Unity 6000.3 (Unity 6.3) Notes
+
+Unity 6000.3 changed the internal signature of `UnityEngine.Object.GetPtrFromInstanceID`:
+
+| Version | Signature |
+|---------|-----------|
+| 6000.0 - 6000.2 | `IntPtr GetPtrFromInstanceID(int instanceID, Type objectType, out bool isMonoBehaviour)` |
+| 6000.3+ | `IntPtr GetPtrFromInstanceID(int instanceID, out bool isMonoBehaviour)` |
+
+The Cecil processor detects the parameter count at build time and emits the correct IL, so the same source works across both version ranges. If you upgrade Unity, just re-run `ProcessAssembly.sh` against the new editor install.
 
 ## Performance Benefits
 
@@ -173,19 +186,24 @@ If you want to modify the library or rebuild for a different Unity version:
 # Make the script executable
 chmod +x ProcessAssembly.sh
 
-# Run the processor
+# Run the processor (defaults to 6000.0.31f1, or pass your Unity path):
 ./ProcessAssembly.sh
+./ProcessAssembly.sh "/Applications/Unity/Hub/Editor/6000.3.0f1"
+
+# Or via environment variable:
+UNITY_PATH="/path/to/editor" ./ProcessAssembly.sh
 ```
 
 This will:
 - Build the CecilProcessor from source
-- Compile the source code from `Runtime~/` 
-- Process the assembly with Cecil to inject IL code
+- Compile the source code from `Runtime~/`
+- Auto-detect internal API signatures from your Unity install
+- Process the assembly with Cecil to inject the correct IL
 - Output `ExposedBindings.dll` to the `Plugins/` folder
 
 ### Customizing for Different Unity Versions
-1. Update Unity path in `ProcessAssembly.sh` if needed
-2. Modify `CecilProcessor/Program.cs` if internal signatures changed
+1. Pass your Unity editor path to `ProcessAssembly.sh` (macOS and Windows layouts auto-detected)
+2. The Cecil processor inspects method signatures at build time — no manual code changes needed for known API variations
 3. Test thoroughly on your target Unity version
 
 ### Build and Distribution (For Maintainers)
